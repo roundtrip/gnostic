@@ -626,22 +626,7 @@ func (g *OpenAPIv3Generator) buildOperationV3(
 			// If body refers to a message field, use that type.
 			for _, field := range inputMessage.Fields {
 				if string(field.Desc.Name()) == bodyField {
-					switch field.Desc.Kind() {
-					case protoreflect.StringKind:
-						requestSchema = &v3.SchemaOrReference{
-							Oneof: &v3.SchemaOrReference_Schema{
-								Schema: &v3.Schema{
-									Type: "string",
-								},
-							},
-						}
-
-					case protoreflect.MessageKind:
-						requestSchema = g.reflect.schemaOrReferenceForMessage(field.Message.Desc)
-
-					default:
-						log.Printf("unsupported field type %+v", field.Desc)
-					}
+					requestSchema = g.reflect.schemaOrReferenceForField(field.Desc)
 					break
 				}
 			}

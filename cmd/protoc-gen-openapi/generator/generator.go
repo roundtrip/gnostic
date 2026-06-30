@@ -44,6 +44,7 @@ type Configuration struct {
 	CircularDepth   *int
 	DefaultResponse *bool
 	OutputMode      *string
+	ServiceTags     *bool
 }
 
 const (
@@ -599,11 +600,13 @@ func (g *OpenAPIv3Generator) buildOperationV3(
 
 	// Create the operation.
 	op := &v3.Operation{
-		Tags:        []string{tagName},
 		Description: description,
 		OperationId: operationID,
 		Parameters:  parameters,
 		Responses:   responses,
+	}
+	if *g.conf.ServiceTags {
+		op.Tags = []string{tagName}
 	}
 
 	if defaultHost != "" {
@@ -749,7 +752,7 @@ func (g *OpenAPIv3Generator) addPathsToDocumentV3(d *v3.Document, services []*pr
 			}
 		}
 
-		if annotationsCount > 0 {
+		if *g.conf.ServiceTags && annotationsCount > 0 {
 			comment := g.filterCommentString(service.Comments.Leading)
 			d.Tags = append(d.Tags, &v3.Tag{Name: service.GoName, Description: comment})
 		}

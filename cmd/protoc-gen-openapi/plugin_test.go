@@ -255,6 +255,38 @@ func TestOpenAPIStringEnums(t *testing.T) {
 	}
 }
 
+func TestOpenAPINoServiceTags(t *testing.T) {
+	pluginPath := filepath.Join(t.TempDir(), "protoc-gen-openapi")
+	if output, err := exec.Command("go", "build", "-o", pluginPath, ".").CombinedOutput(); err != nil {
+		t.Fatalf("failed to build protoc-gen-openapi: %+v\n%s", err, output)
+	}
+
+	cmd := exec.Command("protoc",
+		"-I", "../../",
+		"-I", "../../third_party",
+		"-I", "examples",
+		"--plugin=protoc-gen-openapi="+pluginPath,
+		"examples/tests/pathparams/message.proto",
+		"--openapi_out=naming=proto,service_tags=false:.")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("protoc failed: %+v\n%s", err, output)
+	}
+	defer os.Remove(TEMP_FILE)
+
+	contents, err := os.ReadFile(TEMP_FILE)
+	if err != nil {
+		t.Fatalf("failed to read generated openapi: %+v", err)
+	}
+
+	generated := string(contents)
+	if strings.Contains(generated, "tags:\n                - Messaging") {
+		t.Fatalf("expected generated spec not to contain automatic operation service tags")
+	}
+	if strings.Contains(generated, "tags:\n    - name: Messaging") {
+		t.Fatalf("expected generated spec not to contain automatic top-level service tags")
+	}
+}
+
 func TestOpenAPIDefaultResponse(t *testing.T) {
 	for _, tt := range openapiTests {
 		fixture := path.Join(tt.path, "openapi_default_response.yaml")

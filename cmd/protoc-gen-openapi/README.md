@@ -63,3 +63,7 @@ refers to additional .proto files in the same directory as
               schema:
                 $ref: '#/components/schemas/google.rpc.Status'
       ```
+9. `service_tags`: automatically add service names as OpenAPI operation tags.
+   - **default**: true
+   - `true`: operations are tagged with their enclosing service name, preserving historical behavior.
+   - `false`: operations are not automatically tagged with their service name. Explicit operation annotation tags are still emitted.

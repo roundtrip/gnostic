@@ -67,3 +67,7 @@ refers to additional .proto files in the same directory as
    - **default**: true
    - `true`: operations are tagged with their enclosing service name, preserving historical behavior.
    - `false`: operations are not automatically tagged with their service name. Explicit operation annotation tags are still emitted.
+10. `ignore_additional_bindings`: ignore `additional_bindings` in `google.api.http` annotations.
+   - **default**: false
+   - `true`: only the primary HTTP binding is emitted for each RPC.
+   - `false`: primary and additional HTTP bindings are emitted, preserving historical behavior.

@@ -35,16 +35,17 @@ import (
 )
 
 type Configuration struct {
-	Version         *string
-	Title           *string
-	Description     *string
-	Naming          *string
-	FQSchemaNaming  *bool
-	EnumType        *string
-	CircularDepth   *int
-	DefaultResponse *bool
-	OutputMode      *string
-	ServiceTags     *bool
+	Version                  *string
+	Title                    *string
+	Description              *string
+	Naming                   *string
+	FQSchemaNaming           *bool
+	EnumType                 *string
+	CircularDepth            *int
+	DefaultResponse          *bool
+	OutputMode               *string
+	ServiceTags              *bool
+	IgnoreAdditionalBindings *bool
 }
 
 const (
@@ -704,7 +705,9 @@ func (g *OpenAPIv3Generator) addPathsToDocumentV3(d *v3.Document, services []*pr
 
 				rule := extHTTP.(*annotations.HttpRule)
 				rules = append(rules, rule)
-				rules = append(rules, rule.AdditionalBindings...)
+				if !*g.conf.IgnoreAdditionalBindings {
+					rules = append(rules, rule.AdditionalBindings...)
+				}
 			}
 
 			for _, rule := range rules {

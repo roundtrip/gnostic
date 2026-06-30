@@ -287,6 +287,38 @@ func TestOpenAPINoServiceTags(t *testing.T) {
 	}
 }
 
+func TestOpenAPIIgnoreAdditionalBindings(t *testing.T) {
+	pluginPath := filepath.Join(t.TempDir(), "protoc-gen-openapi")
+	if output, err := exec.Command("go", "build", "-o", pluginPath, ".").CombinedOutput(); err != nil {
+		t.Fatalf("failed to build protoc-gen-openapi: %+v\n%s", err, output)
+	}
+
+	cmd := exec.Command("protoc",
+		"-I", "../../",
+		"-I", "../../third_party",
+		"-I", "examples",
+		"--plugin=protoc-gen-openapi="+pluginPath,
+		"examples/tests/additional_bindings/message.proto",
+		"--openapi_out=naming=proto,ignore_additional_bindings=true:.")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("protoc failed: %+v\n%s", err, output)
+	}
+	defer os.Remove(TEMP_FILE)
+
+	contents, err := os.ReadFile(TEMP_FILE)
+	if err != nil {
+		t.Fatalf("failed to read generated openapi: %+v", err)
+	}
+
+	generated := string(contents)
+	if strings.Contains(generated, "    /v1/messages:\n") {
+		t.Fatalf("expected generated spec not to contain additional binding path")
+	}
+	if !strings.Contains(generated, "    /v1/messages/{message_id}:\n") {
+		t.Fatalf("expected generated spec to contain primary binding path")
+	}
+}
+
 func TestOpenAPIDefaultResponse(t *testing.T) {
 	for _, tt := range openapiTests {
 		fixture := path.Join(tt.path, "openapi_default_response.yaml")

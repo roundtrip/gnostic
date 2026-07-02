@@ -40,6 +40,7 @@ func main() {
 		OutputMode:               flags.String("output_mode", "merged", `output generation mode. By default, a single openapi.yaml is generated at the out folder. Use "source_relative' to generate a separate '[inputfile].openapi.yaml' next to each '[inputfile].proto'.`),
 		ServiceTags:              flags.Bool("service_tags", true, "automatically add service names as OpenAPI operation tags"),
 		IgnoreAdditionalBindings: flags.Bool("ignore_additional_bindings", false, "ignore additional_bindings in google.api.http annotations"),
+		StripPathParamsFromBody:  flags.Bool("strip_path_params_from_body", false, `when body is "*", generate a separate "<Message>_Body" request-body schema with path parameter fields removed`),
 	}
 
 	opts := protogen.Options{

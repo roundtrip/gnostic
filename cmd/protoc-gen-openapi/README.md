@@ -71,3 +71,7 @@ refers to additional .proto files in the same directory as
    - **default**: false
    - `true`: only the primary HTTP binding is emitted for each RPC.
    - `false`: primary and additional HTTP bindings are emitted, preserving historical behavior.
+11. `strip_path_params_from_body`: when the HTTP binding uses `body: "*"`, strip fields already bound to path parameters from the request body schema.
+   - **default**: false
+   - `true`: generates a dedicated `<Service>_<Method>_Body` schema with the path parameter fields removed and references it from the request body, so they aren't duplicated in both the path and the body. The schema is named per-operation (not per-message) because the same message may be bound by different operations with different path parameters. If every field is a path parameter the body would be empty, so no request body is emitted.
+   - `false`: the full request message is referenced as the request body, preserving historical behavior.

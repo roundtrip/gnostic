@@ -319,6 +319,97 @@ func TestOpenAPIIgnoreAdditionalBindings(t *testing.T) {
 	}
 }
 
+func TestOpenAPIStripPathParamsFromBody(t *testing.T) {
+	pluginPath := filepath.Join(t.TempDir(), "protoc-gen-openapi")
+	if output, err := exec.Command("go", "build", "-o", pluginPath, ".").CombinedOutput(); err != nil {
+		t.Fatalf("failed to build protoc-gen-openapi: %+v\n%s", err, output)
+	}
+
+	generate := func(t *testing.T, opts string) string {
+		cmd := exec.Command("protoc",
+			"-I", "../../",
+			"-I", "../../third_party",
+			"-I", "examples",
+			"--plugin=protoc-gen-openapi="+pluginPath,
+			"examples/tests/pathparamsbody/message.proto",
+			"--openapi_out="+opts+":.")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("protoc failed: %+v\n%s", err, output)
+		}
+		defer os.Remove(TEMP_FILE)
+		contents, err := os.ReadFile(TEMP_FILE)
+		if err != nil {
+			t.Fatalf("failed to read generated openapi: %+v", err)
+		}
+		return string(contents)
+	}
+
+	t.Run("enabled", func(t *testing.T) {
+		generated := generate(t, "naming=proto,strip_path_params_from_body=true")
+
+		if !strings.Contains(generated, "$ref: '#/components/schemas/Messaging_UpdateMessage_Body'") {
+			t.Fatalf("expected request body to reference the stripped Messaging_UpdateMessage_Body schema\n%s", generated)
+		}
+		bodySchema := sectionAfter(generated, "        Messaging_UpdateMessage_Body:")
+		if !strings.Contains(bodySchema, "text:") {
+			t.Fatalf("expected body schema to contain the body field 'text'\n%s", bodySchema)
+		}
+		if strings.Contains(bodySchema, "message_id:") {
+			t.Fatalf("expected body schema to omit the path parameter 'message_id'\n%s", bodySchema)
+		}
+		if !strings.Contains(generated, "name: message_id\n") {
+			t.Fatalf("expected message_id to remain a path parameter\n%s", generated)
+		}
+
+		// When every field is a path parameter the stripped body is empty, so
+		// no request body (and no _Body schema) should be emitted.
+		touch := sectionAfter(generated, "    /v1/messages/{message_id}/touch:")
+		if strings.Contains(touch, "requestBody:") {
+			t.Fatalf("expected no request body when all fields are path parameters\n%s", touch)
+		}
+		if strings.Contains(generated, "Messaging_TouchMessage_Body") {
+			t.Fatalf("expected no _Body schema when all fields are path parameters\n%s", generated)
+		}
+	})
+
+	t.Run("disabled by default", func(t *testing.T) {
+		generated := generate(t, "naming=proto")
+
+		if strings.Contains(generated, "_Body") {
+			t.Fatalf("expected no stripped body schema when the option is disabled\n%s", generated)
+		}
+		if !strings.Contains(generated, "$ref: '#/components/schemas/Message'") {
+			t.Fatalf("expected request body to reference the full Message schema\n%s", generated)
+		}
+	})
+}
+
+// sectionAfter returns the text from the given header up to the next line that
+// is indented at the same level or less (i.e. the body of a YAML block).
+func sectionAfter(contents, header string) string {
+	idx := strings.Index(contents, header)
+	if idx < 0 {
+		return ""
+	}
+	rest := contents[idx+len(header):]
+	indent := len(header) - len(strings.TrimLeft(header, " "))
+	lines := strings.Split(rest, "\n")
+	out := []string{header}
+	for i, line := range lines {
+		if i == 0 {
+			continue
+		}
+		if strings.TrimSpace(line) != "" {
+			lineIndent := len(line) - len(strings.TrimLeft(line, " "))
+			if lineIndent <= indent {
+				break
+			}
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
 func TestOpenAPIDefaultResponse(t *testing.T) {
 	for _, tt := range openapiTests {
 		fixture := path.Join(tt.path, "openapi_default_response.yaml")

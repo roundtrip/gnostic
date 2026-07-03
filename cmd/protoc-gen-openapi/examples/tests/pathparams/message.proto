@@ -18,6 +18,7 @@ syntax = "proto3";
 package tests.pathparams.message.v1;
 
 import "google/api/annotations.proto";
+import "openapiv3/annotations.proto";
 
 option go_package = "github.com/google/gnostic/apps/protoc-gen-openapi/examples/tests/pathparams/message/v1;message";
 
@@ -43,8 +44,16 @@ service Messaging {
 }
 
 message GetMessageRequest {
-  string message_id = 1;
-  uint64 user_id = 2;
+  string message_id = 1 [
+    (openapi.v3.property) = {
+      example: { yaml: "message-123" }
+    }
+  ];
+  uint64 user_id = 2 [
+    (openapi.v3.property) = {
+      example: { yaml: "123" }
+    }
+  ];
 }
 
 message Meta {

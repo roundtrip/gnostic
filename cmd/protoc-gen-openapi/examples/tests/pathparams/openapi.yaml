@@ -16,10 +16,12 @@ paths:
                   in: path
                   required: true
                   schema:
+                    example: message-123
                     type: string
                 - name: user_id
                   in: query
                   schema:
+                    example: 123
                     type: string
             responses:
                 "200":
@@ -73,11 +75,13 @@ paths:
                   in: path
                   required: true
                   schema:
+                    example: 123
                     type: string
                 - name: message_id
                   in: path
                   required: true
                   schema:
+                    example: message-123
                     type: string
             responses:
                 "200":

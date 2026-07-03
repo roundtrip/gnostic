@@ -23,10 +23,6 @@ paths:
                   schema:
                     type: integer
                     format: enum
-            requestBody:
-                content:
-                    application/json: {}
-                required: true
             responses:
                 "200":
                     description: OK

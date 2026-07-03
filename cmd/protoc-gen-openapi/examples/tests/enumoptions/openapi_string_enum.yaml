@@ -27,10 +27,6 @@ paths:
                         - KIND_2
                     type: string
                     format: enum
-            requestBody:
-                content:
-                    application/json: {}
-                required: true
             responses:
                 "200":
                     description: OK

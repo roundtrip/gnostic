@@ -289,6 +289,34 @@ func (g *OpenAPIv3Generator) buildQueryParamsV3(field *protogen.Field) []*v3.Par
 	return g._buildQueryParamsV3(field, depths)
 }
 
+func (g *OpenAPIv3Generator) applyFieldPropertyAnnotation(field *protogen.Field, fieldSchema *v3.SchemaOrReference) *v3.SchemaOrReference {
+	if field == nil || fieldSchema == nil {
+		return fieldSchema
+	}
+
+	if !proto.HasExtension(field.Desc.Options(), v3.E_Property) {
+		return fieldSchema
+	}
+	extProperty := proto.GetExtension(field.Desc.Options(), v3.E_Property)
+	propertySchema, ok := extProperty.(*v3.Schema)
+	if !ok || proto.Size(propertySchema) == 0 {
+		return fieldSchema
+	}
+
+	fieldSchema = proto.Clone(fieldSchema).(*v3.SchemaOrReference)
+	if _, ok := fieldSchema.Oneof.(*v3.SchemaOrReference_Reference); ok {
+		fieldSchema = &v3.SchemaOrReference{Oneof: &v3.SchemaOrReference_Schema{Schema: &v3.Schema{
+			AllOf: []*v3.SchemaOrReference{fieldSchema},
+		}}}
+	}
+
+	if schema, ok := fieldSchema.Oneof.(*v3.SchemaOrReference_Schema); ok {
+		proto.Merge(schema.Schema, propertySchema)
+	}
+
+	return fieldSchema
+}
+
 // depths are used to keep track of how many times a message's fields has been seen
 func (g *OpenAPIv3Generator) _buildQueryParamsV3(field *protogen.Field, depths map[string]int) []*v3.ParameterOrReference {
 	parameters := []*v3.ParameterOrReference{}
@@ -306,6 +334,7 @@ func (g *OpenAPIv3Generator) _buildQueryParamsV3(field *protogen.Field, depths m
 		switch typeName {
 		case ".google.protobuf.Value":
 			fieldSchema := g.reflect.schemaOrReferenceForField(field.Desc)
+			fieldSchema = g.applyFieldPropertyAnnotation(field, fieldSchema)
 			parameters = append(parameters,
 				&v3.ParameterOrReference{
 					Oneof: &v3.ParameterOrReference_Parameter{
@@ -325,6 +354,7 @@ func (g *OpenAPIv3Generator) _buildQueryParamsV3(field *protogen.Field, depths m
 			".google.protobuf.DoubleValue":
 			valueField := getValueField(field.Message.Desc)
 			fieldSchema := g.reflect.schemaOrReferenceForField(valueField)
+			fieldSchema = g.applyFieldPropertyAnnotation(field, fieldSchema)
 			parameters = append(parameters,
 				&v3.ParameterOrReference{
 					Oneof: &v3.ParameterOrReference_Parameter{
@@ -341,6 +371,7 @@ func (g *OpenAPIv3Generator) _buildQueryParamsV3(field *protogen.Field, depths m
 
 		case ".google.protobuf.Timestamp":
 			fieldSchema := g.reflect.schemaOrReferenceForMessage(field.Message.Desc)
+			fieldSchema = g.applyFieldPropertyAnnotation(field, fieldSchema)
 			parameters = append(parameters,
 				&v3.ParameterOrReference{
 					Oneof: &v3.ParameterOrReference_Parameter{
@@ -356,6 +387,7 @@ func (g *OpenAPIv3Generator) _buildQueryParamsV3(field *protogen.Field, depths m
 			return parameters
 		case ".google.protobuf.Duration":
 			fieldSchema := g.reflect.schemaOrReferenceForMessage(field.Message.Desc)
+			fieldSchema = g.applyFieldPropertyAnnotation(field, fieldSchema)
 			parameters = append(parameters,
 				&v3.ParameterOrReference{
 					Oneof: &v3.ParameterOrReference_Parameter{
@@ -379,6 +411,7 @@ func (g *OpenAPIv3Generator) _buildQueryParamsV3(field *protogen.Field, depths m
 		// Represent field masks directly as strings (don't expand them).
 		if typeName == ".google.protobuf.FieldMask" {
 			fieldSchema := g.reflect.schemaOrReferenceForField(field.Desc)
+			fieldSchema = g.applyFieldPropertyAnnotation(field, fieldSchema)
 			parameters = append(parameters,
 				&v3.ParameterOrReference{
 					Oneof: &v3.ParameterOrReference_Parameter{
@@ -418,6 +451,7 @@ func (g *OpenAPIv3Generator) _buildQueryParamsV3(field *protogen.Field, depths m
 	} else if field.Desc.Kind() != protoreflect.GroupKind {
 		// schemaOrReferenceForField also handles array types
 		fieldSchema := g.reflect.schemaOrReferenceForField(field.Desc)
+		fieldSchema = g.applyFieldPropertyAnnotation(field, fieldSchema)
 
 		parameters = append(parameters,
 			&v3.ParameterOrReference{
@@ -471,6 +505,7 @@ func (g *OpenAPIv3Generator) buildOperationV3(
 			field := g.findField(pathParameter, inputMessage)
 			if field != nil {
 				fieldSchema = g.reflect.schemaOrReferenceForField(field.Desc)
+				fieldSchema = g.applyFieldPropertyAnnotation(field, fieldSchema)
 				fieldDescription = g.filterCommentString(field.Comments.Leading)
 			} else {
 				// If field does not exist, it is safe to set it to string, as it is ignored downstream
@@ -915,13 +950,8 @@ func (g *OpenAPIv3Generator) buildSchemaForMessage(message *protogen.Message, ex
 			schema.Schema.Description = description
 			schema.Schema.ReadOnly = outputOnly
 			schema.Schema.WriteOnly = inputOnly
-
-			// Merge any `Property` annotations with the current
-			extProperty := proto.GetExtension(field.Desc.Options(), v3.E_Property)
-			if extProperty != nil {
-				proto.Merge(schema.Schema, extProperty.(*v3.Schema))
-			}
 		}
+		fieldSchema = g.applyFieldPropertyAnnotation(field, fieldSchema)
 
 		definitionProperties.AdditionalProperties = append(
 			definitionProperties.AdditionalProperties,

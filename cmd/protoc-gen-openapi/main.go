@@ -41,6 +41,7 @@ func main() {
 		ServiceTags:              flags.Bool("service_tags", true, "automatically add service names as OpenAPI operation tags"),
 		IgnoreAdditionalBindings: flags.Bool("ignore_additional_bindings", false, "ignore additional_bindings in google.api.http annotations"),
 		StripPathParamsFromBody:  flags.Bool("strip_path_params_from_body", false, `when body is "*", generate a separate "<Message>_Body" request-body schema with path parameter fields removed`),
+		OmitFloatTags:            flags.Bool("omit_float_tags", false, "remove !!float tags from the generated OpenAPI YAML output"),
 	}
 
 	opts := protogen.Options{

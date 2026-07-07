@@ -410,6 +410,51 @@ func sectionAfter(contents, header string) string {
 	return strings.Join(out, "\n")
 }
 
+func TestOpenAPIOmitFloatTags(t *testing.T) {
+	pluginPath := filepath.Join(t.TempDir(), "protoc-gen-openapi")
+	if output, err := exec.Command("go", "build", "-o", pluginPath, ".").CombinedOutput(); err != nil {
+		t.Fatalf("failed to build protoc-gen-openapi: %+v\n%s", err, output)
+	}
+
+	generate := func(t *testing.T, opts string) string {
+		cmd := exec.Command("protoc",
+			"-I", "../../",
+			"-I", "../../third_party",
+			"-I", "examples",
+			"--plugin=protoc-gen-openapi="+pluginPath,
+			"examples/tests/floattags/message.proto",
+			"--openapi_out="+opts+":.")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("protoc failed: %+v\n%s", err, output)
+		}
+		defer os.Remove(TEMP_FILE)
+		contents, err := os.ReadFile(TEMP_FILE)
+		if err != nil {
+			t.Fatalf("failed to read generated openapi: %+v", err)
+		}
+		return string(contents)
+	}
+
+	t.Run("enabled", func(t *testing.T) {
+		generated := generate(t, "omit_float_tags=true")
+
+		if strings.Contains(generated, "!!float") {
+			t.Fatalf("expected generated spec not to contain !!float tags\n%s", generated)
+		}
+		if !strings.Contains(generated, "maximum: 100") {
+			t.Fatalf("expected generated spec to still contain numeric values\n%s", generated)
+		}
+	})
+
+	t.Run("disabled by default", func(t *testing.T) {
+		generated := generate(t, "naming=json")
+
+		if !strings.Contains(generated, "!!float") {
+			t.Fatalf("expected generated spec to contain !!float tags when option is disabled\n%s", generated)
+		}
+	})
+}
+
 func TestOpenAPIDefaultResponse(t *testing.T) {
 	for _, tt := range openapiTests {
 		fixture := path.Join(tt.path, "openapi_default_response.yaml")

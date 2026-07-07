@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strings"
 
+	yaml "go.yaml.in/yaml/v3"
 	"google.golang.org/genproto/googleapis/api/annotations"
 	status_pb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/protobuf/compiler/protogen"
@@ -47,6 +48,7 @@ type Configuration struct {
 	ServiceTags              *bool
 	IgnoreAdditionalBindings *bool
 	StripPathParamsFromBody  *bool
+	OmitFloatTags            *bool
 }
 
 const (
@@ -90,7 +92,20 @@ func NewOpenAPIv3Generator(plugin *protogen.Plugin, conf Configuration, inputFil
 // Run runs the generator.
 func (g *OpenAPIv3Generator) Run(outputFile *protogen.GeneratedFile) error {
 	d := g.buildDocumentV3()
-	bytes, err := d.YAMLValue("Generated with protoc-gen-openapi\n" + infoURL)
+	comment := "Generated with protoc-gen-openapi\n" + infoURL
+	var bytes []byte
+	var err error
+	if g.conf.OmitFloatTags != nil && *g.conf.OmitFloatTags {
+		rawInfo := d.ToRawInfo()
+		clearFloatTags(rawInfo)
+		bytes, err = yaml.Marshal(&yaml.Node{
+			Kind:        yaml.DocumentNode,
+			Content:     []*yaml.Node{rawInfo},
+			HeadComment: comment,
+		})
+	} else {
+		bytes, err = d.YAMLValue(comment)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to marshal yaml: %s", err.Error())
 	}
@@ -98,6 +113,17 @@ func (g *OpenAPIv3Generator) Run(outputFile *protogen.GeneratedFile) error {
 		return fmt.Errorf("failed to write yaml: %s", err.Error())
 	}
 	return nil
+}
+
+// clearFloatTags removes explicit !!float tags from scalar nodes so the
+// marshaler emits plain numeric values (e.g. "100" instead of "!!float 100").
+func clearFloatTags(node *yaml.Node) {
+	if node.Kind == yaml.ScalarNode && node.Tag == "!!float" {
+		node.Tag = ""
+	}
+	for _, child := range node.Content {
+		clearFloatTags(child)
+	}
 }
 
 // buildDocumentV3 builds an OpenAPIv3 document for a plugin request.

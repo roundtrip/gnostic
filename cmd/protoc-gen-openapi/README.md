@@ -79,3 +79,11 @@ refers to additional .proto files in the same directory as
    - **default**: false
    - `true`: generates a dedicated `<Service>_<Method>_Body` schema with the path parameter fields removed and references it from the request body, so they aren't duplicated in both the path and the body. The schema is named per-operation (not per-message) because the same message may be bound by different operations with different path parameters. If every field is a path parameter the body would be empty, so no request body is emitted.
    - `false`: the full request message is referenced as the request body, preserving historical behavior.
+13. `idempotency_key_policy_option`: fully qualified name of the company-specific idempotency policy extension on `google.protobuf.MethodOptions`.
+   - **default**: empty; idempotency metadata generation is disabled.
+   - The extension must be a singular enum containing `POLICY_UNKNOWN`, `POLICY_UNSUPPORTED`, and `POLICY_OPTIONAL`.
+   - Methods marked `POLICY_OPTIONAL` reference a shared optional `Idempotency-Key` request-header parameter. Their successful `2xx` responses reference shared `Idempotency-Key` and `Idempotency-Replayed` response headers.
+   - Unspecified and unsupported methods are unchanged. Additional HTTP bindings inherit their RPC's policy.
+   - Inline and local component references for parameters and successful responses are inspected so existing metadata is preserved without duplication. Local response components are cloned before adding headers so shared components remain unchanged. Existing components that use the generated names must have compatible parameter/header shapes; incompatible name collisions cause generation to fail.
+   - Non-local successful response references cannot be safely decorated and cause generation to fail. Non-local parameter references cannot be inspected and therefore do not suppress the generated parameter.
+   - Example: `--openapi_out=idempotency_key_policy_option=protip.policy:.`

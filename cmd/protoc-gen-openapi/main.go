@@ -29,19 +29,20 @@ var flags flag.FlagSet
 
 func main() {
 	conf := generator.Configuration{
-		Version:                  flags.String("version", "0.0.1", "version number text, e.g. 1.2.3"),
-		Title:                    flags.String("title", "", "name of the API"),
-		Description:              flags.String("description", "", "description of the API"),
-		Naming:                   flags.String("naming", "json", `naming convention. Use "proto" for passing names directly from the proto files`),
-		FQSchemaNaming:           flags.Bool("fq_schema_naming", false, `schema naming convention. If "true", generates fully-qualified schema names by prefixing them with the proto message package name`),
-		EnumType:                 flags.String("enum_type", "integer", `type for enum serialization. Use "string" for string-based serialization`),
-		CircularDepth:            flags.Int("depth", 2, "depth of recursion for circular messages"),
-		DefaultResponse:          flags.Bool("default_response", true, `add default response. If "true", automatically adds a default response to operations which use the google.rpc.Status message. Useful if you use envoy or grpc-gateway to transcode as they use this type for their default error responses.`),
-		OutputMode:               flags.String("output_mode", "merged", `output generation mode. By default, a single openapi.yaml is generated at the out folder. Use "source_relative' to generate a separate '[inputfile].openapi.yaml' next to each '[inputfile].proto'.`),
-		ServiceTags:              flags.Bool("service_tags", true, "automatically add service names as OpenAPI operation tags"),
-		IgnoreAdditionalBindings: flags.Bool("ignore_additional_bindings", false, "ignore additional_bindings in google.api.http annotations"),
-		StripPathParamsFromBody:  flags.Bool("strip_path_params_from_body", false, `when body is "*", generate a separate "<Message>_Body" request-body schema with path parameter fields removed`),
-		OmitFloatTags:            flags.Bool("omit_float_tags", false, "remove !!float tags from the generated OpenAPI YAML output"),
+		Version:                    flags.String("version", "0.0.1", "version number text, e.g. 1.2.3"),
+		Title:                      flags.String("title", "", "name of the API"),
+		Description:                flags.String("description", "", "description of the API"),
+		Naming:                     flags.String("naming", "json", `naming convention. Use "proto" for passing names directly from the proto files`),
+		FQSchemaNaming:             flags.Bool("fq_schema_naming", false, `schema naming convention. If "true", generates fully-qualified schema names by prefixing them with the proto message package name`),
+		EnumType:                   flags.String("enum_type", "integer", `type for enum serialization. Use "string" for string-based serialization`),
+		CircularDepth:              flags.Int("depth", 2, "depth of recursion for circular messages"),
+		DefaultResponse:            flags.Bool("default_response", true, `add default response. If "true", automatically adds a default response to operations which use the google.rpc.Status message. Useful if you use envoy or grpc-gateway to transcode as they use this type for their default error responses.`),
+		OutputMode:                 flags.String("output_mode", "merged", `output generation mode. By default, a single openapi.yaml is generated at the out folder. Use "source_relative' to generate a separate '[inputfile].openapi.yaml' next to each '[inputfile].proto'.`),
+		ServiceTags:                flags.Bool("service_tags", true, "automatically add service names as OpenAPI operation tags"),
+		IgnoreAdditionalBindings:   flags.Bool("ignore_additional_bindings", false, "ignore additional_bindings in google.api.http annotations"),
+		StripPathParamsFromBody:    flags.Bool("strip_path_params_from_body", false, `when body is "*", generate a separate "<Message>_Body" request-body schema with path parameter fields removed`),
+		OmitFloatTags:              flags.Bool("omit_float_tags", false, "remove !!float tags from the generated OpenAPI YAML output"),
+		IdempotencyKeyPolicyOption: flags.String("idempotency_key_policy_option", "", "fully qualified name of an idempotency policy MethodOptions enum extension containing UNKNOWN, UNSUPPORTED, and OPTIONAL values"),
 	}
 
 	opts := protogen.Options{

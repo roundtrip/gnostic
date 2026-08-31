@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
 	any_pb "google.golang.org/protobuf/types/known/anypb"
 
 	wk "github.com/google/gnostic/cmd/protoc-gen-openapi/generator/wellknown"
@@ -36,19 +37,20 @@ import (
 )
 
 type Configuration struct {
-	Version                  *string
-	Title                    *string
-	Description              *string
-	Naming                   *string
-	FQSchemaNaming           *bool
-	EnumType                 *string
-	CircularDepth            *int
-	DefaultResponse          *bool
-	OutputMode               *string
-	ServiceTags              *bool
-	IgnoreAdditionalBindings *bool
-	StripPathParamsFromBody  *bool
-	OmitFloatTags            *bool
+	Version                    *string
+	Title                      *string
+	Description                *string
+	Naming                     *string
+	FQSchemaNaming             *bool
+	EnumType                   *string
+	CircularDepth              *int
+	DefaultResponse            *bool
+	OutputMode                 *string
+	ServiceTags                *bool
+	IgnoreAdditionalBindings   *bool
+	StripPathParamsFromBody    *bool
+	OmitFloatTags              *bool
+	IdempotencyKeyPolicyOption *string
 }
 
 const (
@@ -72,6 +74,10 @@ type OpenAPIv3Generator struct {
 	linterRulePattern *regexp.Regexp
 	pathPattern       *regexp.Regexp
 	namedPathPattern  *regexp.Regexp
+
+	idempotencyExtension protoreflect.ExtensionType
+	idempotencyResolver  *protoregistry.Types
+	idempotencyPolicies  map[protoreflect.EnumNumber]idempotencyPolicy
 }
 
 // NewOpenAPIv3Generator creates a new generator for a protoc plugin invocation.
@@ -91,10 +97,15 @@ func NewOpenAPIv3Generator(plugin *protogen.Plugin, conf Configuration, inputFil
 
 // Run runs the generator.
 func (g *OpenAPIv3Generator) Run(outputFile *protogen.GeneratedFile) error {
-	d := g.buildDocumentV3()
+	if err := g.initializeIdempotencyExtension(); err != nil {
+		return err
+	}
+	d, err := g.buildDocumentV3()
+	if err != nil {
+		return err
+	}
 	comment := "Generated with protoc-gen-openapi\n" + infoURL
 	var bytes []byte
-	var err error
 	if g.conf.OmitFloatTags != nil && *g.conf.OmitFloatTags {
 		rawInfo := d.ToRawInfo()
 		clearFloatTags(rawInfo)
@@ -127,7 +138,7 @@ func clearFloatTags(node *yaml.Node) {
 }
 
 // buildDocumentV3 builds an OpenAPIv3 document for a plugin request.
-func (g *OpenAPIv3Generator) buildDocumentV3() *v3.Document {
+func (g *OpenAPIv3Generator) buildDocumentV3() (*v3.Document, error) {
 	d := &v3.Document{}
 
 	d.Openapi = "3.0.3"
@@ -144,18 +155,28 @@ func (g *OpenAPIv3Generator) buildDocumentV3() *v3.Document {
 		},
 	}
 
-	// Go through the files and add the services to the documents, keeping
-	// track of which schemas are referenced in the response so we can
-	// add them later.
+	// Merge all document annotations before generating operations. Operations
+	// may reference components declared by another input file, so resolving them
+	// while documents are only partially merged would make output file-order
+	// dependent.
 	for _, file := range g.inputFiles {
-		if file.Generate {
-			// Merge any `Document` annotations with the current
-			extDocument := proto.GetExtension(file.Desc.Options(), v3.E_Document)
-			if extDocument != nil {
-				proto.Merge(d, extDocument.(*v3.Document))
-			}
+		if !file.Generate {
+			continue
+		}
+		if extDocument := proto.GetExtension(file.Desc.Options(), v3.E_Document); extDocument != nil {
+			proto.Merge(d, extDocument.(*v3.Document))
+		}
+	}
 
-			g.addPathsToDocumentV3(d, file.Services)
+	// Add services after the complete component registry is available, keeping
+	// track of which schemas are referenced in the response so we can add them
+	// later.
+	for _, file := range g.inputFiles {
+		if !file.Generate {
+			continue
+		}
+		if err := g.addPathsToDocumentV3(d, file.Services); err != nil {
+			return nil, err
 		}
 	}
 
@@ -269,7 +290,7 @@ func (g *OpenAPIv3Generator) buildDocumentV3() *v3.Document {
 		})
 		d.Components.Schemas.AdditionalProperties = pairs
 	}
-	return d
+	return d, nil
 }
 
 // filterCommentString removes linter rules from comments.
@@ -787,7 +808,7 @@ func (g *OpenAPIv3Generator) addOperationToDocumentV3(d *v3.Document, op *v3.Ope
 }
 
 // addPathsToDocumentV3 adds paths from a specified file descriptor.
-func (g *OpenAPIv3Generator) addPathsToDocumentV3(d *v3.Document, services []*protogen.Service) {
+func (g *OpenAPIv3Generator) addPathsToDocumentV3(d *v3.Document, services []*protogen.Service) error {
 	for _, service := range services {
 		annotationsCount := 0
 
@@ -810,6 +831,8 @@ func (g *OpenAPIv3Generator) addPathsToDocumentV3(d *v3.Document, services []*pr
 				}
 			}
 
+			policy := idempotencyPolicyUnknown
+			policyResolved := false
 			for _, rule := range rules {
 				var path string
 				var methodName string
@@ -839,6 +862,15 @@ func (g *OpenAPIv3Generator) addPathsToDocumentV3(d *v3.Document, services []*pr
 				}
 
 				if methodName != "" {
+					if !policyResolved {
+						var err error
+						policy, err = g.idempotencyPolicy(method)
+						if err != nil {
+							return err
+						}
+						policyResolved = true
+					}
+
 					defaultHost := proto.GetExtension(service.Desc.Options(), annotations.E_DefaultHost).(string)
 
 					op, path2 := g.buildOperationV3(
@@ -850,6 +882,9 @@ func (g *OpenAPIv3Generator) addPathsToDocumentV3(d *v3.Document, services []*pr
 						proto.Merge(op, extOperation.(*v3.Operation))
 					}
 
+					if err := g.applyIdempotencyPolicy(d, op, policy); err != nil {
+						return err
+					}
 					g.addOperationToDocumentV3(d, op, path2, methodName)
 				}
 			}
@@ -860,6 +895,7 @@ func (g *OpenAPIv3Generator) addPathsToDocumentV3(d *v3.Document, services []*pr
 			d.Tags = append(d.Tags, &v3.Tag{Name: service.GoName, Description: comment})
 		}
 	}
+	return nil
 }
 
 // addSchemaForMessageToDocumentV3 adds the schema to the document if required

@@ -900,11 +900,8 @@ func (g *OpenAPIv3Generator) addPathsToDocumentV3(d *v3.Document, services []*pr
 					if err := g.applyIdempotencyPolicy(d, op, policy); err != nil {
 						return err
 					}
-					// MCP tools are built from an RPC's primary HTTP binding only.
-					if g.mcpExcludeExtension != nil && i == 0 && !mcpExcluded {
-						if err := addMCPTool(op, methodName); err != nil {
-							return err
-						}
+					if err := g.applyMCPTool(method, op, methodName, i == 0, mcpExcluded); err != nil {
+						return err
 					}
 					g.addOperationToDocumentV3(d, op, path2, methodName)
 				}

@@ -40,7 +40,7 @@ func TestOpenAPIMCPTools(t *testing.T) {
 		t.Fatalf("failed to build protoc-gen-openapi: %v\n%s", err, output)
 	}
 
-	run := func(t *testing.T, option string) (*v3.Document, string) {
+	run := func(t *testing.T, option string, file string) (*v3.Document, string) {
 		t.Helper()
 		outputDir := t.TempDir()
 		output, err := exec.Command("protoc",
@@ -48,7 +48,7 @@ func TestOpenAPIMCPTools(t *testing.T) {
 			"-I", "../../third_party",
 			"-I", "examples",
 			"--plugin=protoc-gen-openapi="+pluginPath,
-			"examples/tests/mcp/message.proto",
+			file,
 			"--openapi_out="+option+":"+outputDir,
 		).CombinedOutput()
 		if err != nil {
@@ -66,7 +66,7 @@ func TestOpenAPIMCPTools(t *testing.T) {
 	}
 
 	t.Run("operations are marked unless excluded", func(t *testing.T) {
-		doc, stderr := run(t, mcpOption)
+		doc, stderr := run(t, mcpOption, "examples/tests/mcp/message.proto")
 		if stderr != "" {
 			t.Fatalf("protoc failed:\n%s", stderr)
 		}
@@ -96,12 +96,20 @@ func TestOpenAPIMCPTools(t *testing.T) {
 	})
 
 	t.Run("feature is opt in", func(t *testing.T) {
-		doc, stderr := run(t, "naming=json")
+		doc, stderr := run(t, "naming=json", "examples/tests/mcp/message.proto")
 		if stderr != "" {
 			t.Fatalf("protoc failed:\n%s", stderr)
 		}
 		if got := mcpToolExtension(t, findOperation(t, doc, "/v1/messages", "GET")); got != nil {
 			t.Errorf("x-mcp-tool = %+v without configuration, want none", *got)
+		}
+	})
+
+	t.Run("excluded RPC can't set x-mcp-tool", func(t *testing.T) {
+		_, stderr := run(t, mcpOption, "examples/tests/mcp/excluded_with_tool.proto")
+		want := "method tests.mcp.Conflicting.Hidden is excluded from MCP with tests.mcp.exclude_from_mcp but its operation sets x-mcp-tool"
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("protoc error = %q, want it to contain %q", stderr, want)
 		}
 	})
 
@@ -115,7 +123,7 @@ func TestOpenAPIMCPTools(t *testing.T) {
 		{"wrong value type", "tests.mcp.wrong_exclude_type", "must be a singular bool extension"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, stderr := run(t, "mcp_exclude_option="+test.option)
+			_, stderr := run(t, "mcp_exclude_option="+test.option, "examples/tests/mcp/message.proto")
 			if !strings.Contains(stderr, test.want) {
 				t.Fatalf("protoc error = %q, want it to contain %q", stderr, test.want)
 			}

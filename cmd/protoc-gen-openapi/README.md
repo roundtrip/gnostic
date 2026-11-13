@@ -91,5 +91,5 @@ refers to additional .proto files in the same directory as
    - **default**: empty; no `x-mcp-tool` extensions are generated.
    - The extension must be a singular bool.
    - Every RPC with an HTTP binding that isn't marked with the extension gets an `x-mcp-tool` vendor extension on the operation for its primary binding, with the tool `name` (the operation ID) and whether it is `readOnly` (true for `GET`). Additional bindings aren't marked.
-   - An `x-mcp-tool` extension already set by an `openapi.v3.operation` annotation is left unchanged.
+   - An `x-mcp-tool` extension already set by an `openapi.v3.operation` annotation is left unchanged. Setting one on an RPC that is also marked with the exclude extension fails generation.
    - Example: `--openapi_out=mcp_exclude_option=protip.exclude_from_mcp:.`

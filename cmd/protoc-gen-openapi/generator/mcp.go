@@ -98,14 +98,24 @@ func (g *OpenAPIv3Generator) excludedFromMCP(method *protogen.Method) (bool, err
 	return options.ProtoReflect().Get(extDesc).Bool(), nil
 }
 
-// addMCPTool marks op as an MCP tool named by its operation ID. Tools for GET
-// operations are read-only. An x-mcp-tool extension already set by an
-// operation annotation is left unchanged.
-func addMCPTool(op *v3.Operation, httpMethod string) error {
-	for _, ext := range op.SpecificationExtension {
-		if ext.GetName() == mcpToolExtension {
-			return nil
+// applyMCPTool marks the operation for an RPC's primary HTTP binding as an MCP
+// tool named by its operation ID, unless the RPC is excluded from MCP. Tools
+// for GET operations are read-only. An x-mcp-tool extension already set by an
+// operation annotation is left unchanged, but it is an error on an excluded
+// RPC.
+func (g *OpenAPIv3Generator) applyMCPTool(method *protogen.Method, op *v3.Operation, httpMethod string, primary, excluded bool) error {
+	if g.mcpExcludeExtension == nil {
+		return nil
+	}
+	if excluded {
+		if hasMCPTool(op) {
+			return fmt.Errorf("method %s is excluded from MCP with %s but its operation sets %s",
+				method.Desc.FullName(), g.mcpExcludeExtension.TypeDescriptor().FullName(), mcpToolExtension)
 		}
+		return nil
+	}
+	if !primary || hasMCPTool(op) {
+		return nil
 	}
 	b, err := yaml.Marshal(mcpTool{Name: op.OperationId, ReadOnly: httpMethod == "GET"})
 	if err != nil {
@@ -116,4 +126,13 @@ func addMCPTool(op *v3.Operation, httpMethod string) error {
 		Value: &v3.Any{Yaml: string(b)},
 	})
 	return nil
+}
+
+func hasMCPTool(op *v3.Operation) bool {
+	for _, ext := range op.SpecificationExtension {
+		if ext.GetName() == mcpToolExtension {
+			return true
+		}
+	}
+	return false
 }

@@ -43,6 +43,7 @@ func main() {
 		StripPathParamsFromBody:    flags.Bool("strip_path_params_from_body", false, `when body is "*", generate a separate "<Message>_Body" request-body schema with path parameter fields removed`),
 		OmitFloatTags:              flags.Bool("omit_float_tags", false, "remove !!float tags from the generated OpenAPI YAML output"),
 		IdempotencyKeyPolicyOption: flags.String("idempotency_key_policy_option", "", "fully qualified name of an idempotency policy MethodOptions enum extension containing UNKNOWN, UNSUPPORTED, and OPTIONAL values"),
+		MCPExcludeOption:           flags.String("mcp_exclude_option", "", "fully qualified name of a bool MethodOptions extension that excludes an RPC from MCP; when set, other operations get an x-mcp-tool extension"),
 	}
 
 	opts := protogen.Options{

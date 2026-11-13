@@ -51,6 +51,7 @@ type Configuration struct {
 	StripPathParamsFromBody    *bool
 	OmitFloatTags              *bool
 	IdempotencyKeyPolicyOption *string
+	MCPExcludeOption           *string
 }
 
 const (
@@ -78,6 +79,9 @@ type OpenAPIv3Generator struct {
 	idempotencyExtension protoreflect.ExtensionType
 	idempotencyResolver  *protoregistry.Types
 	idempotencyPolicies  map[protoreflect.EnumNumber]idempotencyPolicy
+
+	mcpExcludeExtension protoreflect.ExtensionType
+	mcpExcludeResolver  *protoregistry.Types
 }
 
 // NewOpenAPIv3Generator creates a new generator for a protoc plugin invocation.
@@ -98,6 +102,9 @@ func NewOpenAPIv3Generator(plugin *protogen.Plugin, conf Configuration, inputFil
 // Run runs the generator.
 func (g *OpenAPIv3Generator) Run(outputFile *protogen.GeneratedFile) error {
 	if err := g.initializeIdempotencyExtension(); err != nil {
+		return err
+	}
+	if err := g.initializeMCPExcludeExtension(); err != nil {
 		return err
 	}
 	d, err := g.buildDocumentV3()
@@ -833,7 +840,8 @@ func (g *OpenAPIv3Generator) addPathsToDocumentV3(d *v3.Document, services []*pr
 
 			policy := idempotencyPolicyUnknown
 			policyResolved := false
-			for _, rule := range rules {
+			mcpExcluded := false
+			for i, rule := range rules {
 				var path string
 				var methodName string
 				var body string
@@ -869,6 +877,13 @@ func (g *OpenAPIv3Generator) addPathsToDocumentV3(d *v3.Document, services []*pr
 							return err
 						}
 						policyResolved = true
+
+						if g.mcpExcludeExtension != nil {
+							mcpExcluded, err = g.excludedFromMCP(method)
+							if err != nil {
+								return err
+							}
+						}
 					}
 
 					defaultHost := proto.GetExtension(service.Desc.Options(), annotations.E_DefaultHost).(string)
@@ -883,6 +898,9 @@ func (g *OpenAPIv3Generator) addPathsToDocumentV3(d *v3.Document, services []*pr
 					}
 
 					if err := g.applyIdempotencyPolicy(d, op, policy); err != nil {
+						return err
+					}
+					if err := g.applyMCPTool(method, op, methodName, i == 0, mcpExcluded); err != nil {
 						return err
 					}
 					g.addOperationToDocumentV3(d, op, path2, methodName)

@@ -87,3 +87,9 @@ refers to additional .proto files in the same directory as
    - Inline and local component references for parameters and successful responses are inspected so existing metadata is preserved without duplication. Local response components are cloned before adding headers so shared components remain unchanged. Existing components that use the generated names must have compatible parameter/header shapes; incompatible name collisions cause generation to fail.
    - Non-local successful response references cannot be safely decorated and cause generation to fail. Non-local parameter references cannot be inspected and therefore do not suppress the generated parameter.
    - Example: `--openapi_out=idempotency_key_policy_option=protip.policy:.`
+14. `mcp_exclude_option`: fully qualified name of the company-specific extension on `google.protobuf.MethodOptions` that excludes an RPC from MCP.
+   - **default**: empty; no `x-mcp-tool` extensions are generated.
+   - The extension must be a singular bool.
+   - Every RPC with an HTTP binding that isn't marked with the extension gets an `x-mcp-tool` vendor extension on the operation for its primary binding, with the tool `name` (the operation ID) and whether it is `readOnly` (true for `GET`). Additional bindings aren't marked.
+   - An `x-mcp-tool` extension already set by an `openapi.v3.operation` annotation is left unchanged. Setting one on an RPC that is also marked with the exclude extension fails generation.
+   - Example: `--openapi_out=mcp_exclude_option=protip.exclude_from_mcp:.`

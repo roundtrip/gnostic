@@ -1,0 +1,75 @@
+// Copyright (c) 2026 Roundtrip Systems Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package tests.mcp;
+
+option go_package = "github.com/google/gnostic/cmd/protoc-gen-openapi/examples/tests/mcp";
+
+import "google/api/annotations.proto";
+import "openapiv3/annotations.proto";
+import "tests/mcp/options.proto";
+
+message Message {
+  string name = 1;
+}
+
+service Messaging {
+  rpc List(Message) returns (Message) {
+    option (google.api.http) = {get: "/v1/messages"};
+    option (openapi.v3.operation) = {operation_id: "list_messages"};
+  }
+
+  rpc Create(Message) returns (Message) {
+    option (google.api.http) = {
+      post: "/v1/messages"
+      body: "*"
+      additional_bindings: {
+        post: "/v1/other-messages"
+        body: "*"
+      }
+    };
+    option (openapi.v3.operation) = {operation_id: "create_message"};
+  }
+
+  rpc Delete(Message) returns (Message) {
+    option (tests.mcp.exclude_from_mcp) = false;
+    option (google.api.http) = {delete: "/v1/messages/{name}"};
+    option (openapi.v3.operation) = {operation_id: "delete_message"};
+  }
+
+  rpc Hidden(Message) returns (Message) {
+    option (tests.mcp.exclude_from_mcp) = true;
+    option (google.api.http) = {
+      post: "/v1/hidden"
+      body: "*"
+    };
+    option (openapi.v3.operation) = {operation_id: "hidden_message"};
+  }
+
+  rpc Annotated(Message) returns (Message) {
+    option (google.api.http) = {
+      post: "/v1/annotated"
+      body: "*"
+    };
+    option (openapi.v3.operation) = {
+      operation_id: "annotated_message"
+      specification_extension: {
+        name: "x-mcp-tool"
+        value: {yaml: "name: custom_tool\nreadOnly: true\n"}
+      }
+    };
+  }
+}
